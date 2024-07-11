@@ -79,7 +79,7 @@ def validate_sequence(seq):
         return None, "Por favor, introduce una secuencia válida de números separados por comas."
 
 # Interfaz de usuario con Streamlit
-st.title('Redes Neuronales Recurrentes con Streamlit (sin PyTorch)')
+st.title('Redes Neuronales Recurrentes')
 
 # Entrada de usuario para la secuencia
 sequence_input = st.text_input('Introduce una secuencia de números separada por comas', '1,2,3,4,5,6,7,8,9')
