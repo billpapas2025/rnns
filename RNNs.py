@@ -1,21 +1,57 @@
 import streamlit as st
-import torch
-import torch.nn as nn
 import numpy as np
 
-# Definir el modelo RNN
-class SimpleRNN(nn.Module):
+# Definir el modelo RNN usando NumPy
+class SimpleRNN:
     def __init__(self, input_size, hidden_size, output_size):
-        super(SimpleRNN, self).__init__()
         self.hidden_size = hidden_size
-        self.rnn = nn.RNN(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.Wx = np.random.randn(input_size, hidden_size) * 0.01
+        self.Wh = np.random.randn(hidden_size, hidden_size) * 0.01
+        self.Wy = np.random.randn(hidden_size, output_size) * 0.01
+        self.bh = np.zeros((1, hidden_size))
+        self.by = np.zeros((1, output_size))
+    
+    def forward(self, inputs):
+        h = np.zeros((inputs.shape[0], self.hidden_size))
+        for t in range(inputs.shape[1]):
+            h = np.tanh(np.dot(inputs[:, t, :], self.Wx) + np.dot(h, self.Wh) + self.bh)
+        y = np.dot(h, self.Wy) + self.by
+        return y, h
 
-    def forward(self, x):
-        h0 = torch.zeros(1, x.size(0), self.hidden_size)
-        out, _ = self.rnn(x, h0)
-        out = self.fc(out[:, -1, :])
-        return out
+    def loss(self, outputs, targets):
+        return np.mean((outputs - targets) ** 2)
+
+    def train(self, X, y, num_epochs=10, learning_rate=0.01):
+        loss_history = []
+        for epoch in range(num_epochs):
+            outputs, _ = self.forward(X)
+            loss = self.loss(outputs, y)
+            loss_history.append(loss)
+            
+            dL_dy = 2 * (outputs - y) / y.size
+            dL_dWy = np.dot(_, dL_dy)
+            dL_dby = dL_dy.sum(axis=0, keepdims=True)
+            
+            dL_dh = np.dot(dL_dy, self.Wy.T)
+            dL_dWx = np.zeros_like(self.Wx)
+            dL_dWh = np.zeros_like(self.Wh)
+            dL_dbh = np.zeros_like(self.bh)
+            
+            for t in reversed(range(X.shape[1])):
+                dL_dh_raw = dL_dh * (1 - _[:, t, :] ** 2)
+                dL_dWx += np.dot(X[:, t, :].T, dL_dh_raw)
+                if t > 0:
+                    dL_dWh += np.dot(_[:, t-1, :].T, dL_dh_raw)
+                dL_dbh += dL_dh_raw.sum(axis=0, keepdims=True)
+                dL_dh = np.dot(dL_dh_raw, self.Wh.T)
+            
+            self.Wy -= learning_rate * dL_dWy
+            self.by -= learning_rate * dL_dby
+            self.Wx -= learning_rate * dL_dWx
+            self.Wh -= learning_rate * dL_dWh
+            self.bh -= learning_rate * dL_dbh
+        
+        return loss_history
 
 # Función para crear y entrenar una RNN simple
 def create_and_train_rnn(sequence, num_epochs=10, hidden_size=50, learning_rate=0.01):
@@ -23,25 +59,11 @@ def create_and_train_rnn(sequence, num_epochs=10, hidden_size=50, learning_rate=
     X = np.array(sequence[:-1]).reshape((1, len(sequence)-1, 1))
     y = np.array(sequence[1:]).reshape((1, len(sequence)-1, 1))
 
-    X = torch.tensor(X, dtype=torch.float32)
-    y = torch.tensor(y, dtype=torch.float32)
-    
     input_size = 1
     output_size = 1
 
     model = SimpleRNN(input_size, hidden_size, output_size)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    loss_history = []
-    for epoch in range(num_epochs):
-        model.train()
-        outputs = model(X)
-        optimizer.zero_grad()
-        loss = criterion(outputs, y)
-        loss.backward()
-        optimizer.step()
-        loss_history.append(loss.item())
+    loss_history = model.train(X, y, num_epochs, learning_rate)
     
     return model, loss_history
 
@@ -54,7 +76,7 @@ def validate_sequence(seq):
         return None, "Por favor, introduce una secuencia válida de números separados por comas."
 
 # Interfaz de usuario con Streamlit
-st.title('Redes Neuronales Recurrentes con Streamlit')
+st.title('Redes Neuronales Recurrentes con Streamlit (sin PyTorch)')
 
 # Entrada de usuario para la secuencia
 sequence_input = st.text_input('Introduce una secuencia de números separada por comas', '1,2,3,4,5,6,7,8,9')
@@ -77,9 +99,7 @@ else:
         model, loss_history = create_and_train_rnn(sequence, num_epochs, hidden_size, learning_rate)
         
         # Hacer una predicción
-        model.eval()
-        with torch.no_grad():
-            next_value = model(torch.tensor(np.array(sequence[-len(sequence)+1:]).reshape(1, len(sequence)-1, 1), dtype=torch.float32))
+        next_value, _ = model.forward(np.array(sequence[-len(sequence)+1:]).reshape(1, len(sequence)-1, 1))
         
         st.write(f'Secuencia: {sequence}')
         st.write(f'Predicción del próximo valor en la secuencia: {next_value.item()}')
