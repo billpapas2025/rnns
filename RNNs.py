@@ -2,7 +2,6 @@ import streamlit as st
 import torch
 import torch.nn as nn
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Definir el modelo RNN
 class SimpleRNN(nn.Module):
@@ -86,18 +85,9 @@ else:
         st.write(f'Predicción del próximo valor en la secuencia: {next_value.item()}')
 
         # Gráfico de la secuencia original y la predicción
-        fig, ax = plt.subplots()
-        ax.plot(sequence, label='Secuencia Original')
-        ax.plot(len(sequence), next_value.item(), 'ro', label='Predicción')
-        ax.legend()
-        st.pyplot(fig)
+        st.line_chart(sequence + [next_value.item()])
 
         # Gráfico de la historia de la pérdida
-        fig, ax = plt.subplots()
-        ax.plot(loss_history, label='Pérdida durante el entrenamiento')
-        ax.set_xlabel('Época')
-        ax.set_ylabel('Pérdida')
-        ax.legend()
-        st.pyplot(fig)
+        st.line_chart(loss_history)
 
 # Ejecutar la aplicación de Streamlit
