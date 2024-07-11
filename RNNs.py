@@ -13,10 +13,13 @@ class SimpleRNN:
     
     def forward(self, inputs):
         h = np.zeros((inputs.shape[0], self.hidden_size))
+        self.h_states = []
         for t in range(inputs.shape[1]):
             h = np.tanh(np.dot(inputs[:, t, :], self.Wx) + np.dot(h, self.Wh) + self.bh)
+            self.h_states.append(h)
+        self.h_states = np.array(self.h_states)
         y = np.dot(h, self.Wy) + self.by
-        return y, h
+        return y
 
     def loss(self, outputs, targets):
         return np.mean((outputs - targets) ** 2)
@@ -24,12 +27,12 @@ class SimpleRNN:
     def train(self, X, y, num_epochs=10, learning_rate=0.01):
         loss_history = []
         for epoch in range(num_epochs):
-            outputs, _ = self.forward(X)
-            loss = self.loss(outputs, y)
+            outputs = self.forward(X)
+            loss = self.loss(outputs, y[:, -1, :])
             loss_history.append(loss)
             
-            dL_dy = 2 * (outputs - y) / y.size
-            dL_dWy = np.dot(_, dL_dy)
+            dL_dy = 2 * (outputs - y[:, -1, :]) / y[:, -1, :].size
+            dL_dWy = np.dot(self.h_states[-1].T, dL_dy)
             dL_dby = dL_dy.sum(axis=0, keepdims=True)
             
             dL_dh = np.dot(dL_dy, self.Wy.T)
@@ -38,10 +41,10 @@ class SimpleRNN:
             dL_dbh = np.zeros_like(self.bh)
             
             for t in reversed(range(X.shape[1])):
-                dL_dh_raw = dL_dh * (1 - _[:, t, :] ** 2)
+                dL_dh_raw = dL_dh * (1 - self.h_states[t] ** 2)
                 dL_dWx += np.dot(X[:, t, :].T, dL_dh_raw)
                 if t > 0:
-                    dL_dWh += np.dot(_[:, t-1, :].T, dL_dh_raw)
+                    dL_dWh += np.dot(self.h_states[t-1].T, dL_dh_raw)
                 dL_dbh += dL_dh_raw.sum(axis=0, keepdims=True)
                 dL_dh = np.dot(dL_dh_raw, self.Wh.T)
             
@@ -99,7 +102,7 @@ else:
         model, loss_history = create_and_train_rnn(sequence, num_epochs, hidden_size, learning_rate)
         
         # Hacer una predicción
-        next_value, _ = model.forward(np.array(sequence[-len(sequence)+1:]).reshape(1, len(sequence)-1, 1))
+        next_value = model.forward(np.array(sequence[-len(sequence)+1:]).reshape(1, len(sequence)-1, 1))
         
         st.write(f'Secuencia: {sequence}')
         st.write(f'Predicción del próximo valor en la secuencia: {next_value.item()}')
